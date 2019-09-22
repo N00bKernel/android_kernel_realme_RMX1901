@@ -146,11 +146,6 @@ static void vb2_warn_zero_bytesused(struct vb2_buffer *vb)
 		return;
 
 	check_once = true;
-#ifndef VENDOR_EDIT
-//Jingcheng.Li@PSW.MM.MediaServer.Record.1445776, 2018/10/13,
-//Remove for avoiding qcom output logs asserting causes encoder or decoder crash.
-	WARN_ON(1);
-#endif /* VENDOR_EDIT */
 
 	pr_warn("use of bytesused == 0 is deprecated and will be removed in the future,\n");
 	if (vb->vb2_queue->allow_zero_bytesused)
@@ -334,8 +329,6 @@ static int __fill_vb2_buffer(struct vb2_buffer *vb,
 					b->m.planes[plane].m.userptr;
 				planes[plane].length =
 					b->m.planes[plane].length;
-				planes[plane].data_offset =
-					b->m.planes[plane].data_offset;
 			}
 		}
 		if (b->memory == VB2_MEMORY_DMABUF) {
@@ -344,8 +337,6 @@ static int __fill_vb2_buffer(struct vb2_buffer *vb,
 					b->m.planes[plane].m.fd;
 				planes[plane].length =
 					b->m.planes[plane].length;
-				planes[plane].data_offset =
-					b->m.planes[plane].data_offset;
 			}
 		}
 

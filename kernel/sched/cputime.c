@@ -4,12 +4,11 @@
 #include <linux/kernel_stat.h>
 #include <linux/static_key.h>
 #include <linux/context_tracking.h>
-#include <linux/cpufreq_times.h>
 #include "sched.h"
 #ifdef CONFIG_PARAVIRT
 #include <asm/paravirt.h>
 #endif
-#include "walt.h"
+
 
 #ifdef CONFIG_IRQ_TIME_ACCOUNTING
 
@@ -38,6 +37,18 @@ void disable_sched_clock_irqtime(void)
 	sched_clock_irqtime = 0;
 }
 
+static void irqtime_account_delta(struct irqtime *irqtime, u64 delta,
+				  enum cpu_usage_stat idx)
+{
+	u64 *cpustat = kcpustat_this_cpu->cpustat;
+
+	u64_stats_update_begin(&irqtime->sync);
+	cpustat[idx] += delta;
+	irqtime->total += delta;
+	irqtime->tick_delta += delta;
+	u64_stats_update_end(&irqtime->sync);
+}
+
 /*
  * Called before incrementing preempt_count on {soft,}irq_enter
  * and before decrementing preempt_count on {soft,}irq_exit.
@@ -47,18 +58,14 @@ void irqtime_account_irq(struct task_struct *curr)
 	struct irqtime *irqtime = this_cpu_ptr(&cpu_irqtime);
 	s64 delta;
 	int cpu;
-	u64 wallclock;
-	bool account = true;
 
 	if (!sched_clock_irqtime)
 		return;
 
 	cpu = smp_processor_id();
-	wallclock = sched_clock_cpu(cpu);
-	delta = wallclock - irqtime->irq_start_time;
+	delta = sched_clock_cpu(cpu) - irqtime->irq_start_time;
 	irqtime->irq_start_time += delta;
 
-	u64_stats_update_begin(&irqtime->sync);
 	/*
 	 * We do not account for softirq time from ksoftirqd here.
 	 * We want to continue accounting softirq time to ksoftirqd thread
@@ -66,62 +73,29 @@ void irqtime_account_irq(struct task_struct *curr)
 	 * that do not consume any time, but still wants to run.
 	 */
 	if (hardirq_count())
-		irqtime->hardirq_time += delta;
+		irqtime_account_delta(irqtime, delta, CPUTIME_IRQ);
 	else if (in_serving_softirq() && curr != this_cpu_ksoftirqd())
-		irqtime->softirq_time += delta;
-	else
-		account = false;
-
-	u64_stats_update_end(&irqtime->sync);
-
-	if (account)
-		sched_account_irqtime(cpu, curr, delta, wallclock);
-	else if (curr != this_cpu_ksoftirqd())
-		sched_account_irqstart(cpu, curr, wallclock);
+		irqtime_account_delta(irqtime, delta, CPUTIME_SOFTIRQ);
 }
 EXPORT_SYMBOL_GPL(irqtime_account_irq);
 
-static cputime_t irqtime_account_update(u64 irqtime, int idx, cputime_t maxtime)
+static cputime_t irqtime_tick_accounted(cputime_t maxtime)
 {
-	u64 *cpustat = kcpustat_this_cpu->cpustat;
-	u64 base = cpustat[idx];
-	cputime_t irq_cputime;
+	struct irqtime *irqtime = this_cpu_ptr(&cpu_irqtime);
+	cputime_t delta;
 
-	if (idx == CPUTIME_SOFTIRQ)
-		base = kcpustat_this_cpu->softirq_no_ksoftirqd;
+	delta = nsecs_to_cputime(irqtime->tick_delta);
+	delta = min(delta, maxtime);
+	irqtime->tick_delta -= cputime_to_nsecs(delta);
 
-	irq_cputime = nsecs_to_cputime64(irqtime) - base;
-	irq_cputime = min(irq_cputime, maxtime);
-	cpustat[idx] += irq_cputime;
-
-	if (idx == CPUTIME_SOFTIRQ)
-		kcpustat_this_cpu->softirq_no_ksoftirqd += irq_cputime;
-
-	return irq_cputime;
-}
-
-static cputime_t irqtime_account_hi_update(cputime_t maxtime)
-{
-	return irqtime_account_update(__this_cpu_read(cpu_irqtime.hardirq_time),
-				      CPUTIME_IRQ, maxtime);
-}
-
-static cputime_t irqtime_account_si_update(cputime_t maxtime)
-{
-	return irqtime_account_update(__this_cpu_read(cpu_irqtime.softirq_time),
-				      CPUTIME_SOFTIRQ, maxtime);
+	return delta;
 }
 
 #else /* CONFIG_IRQ_TIME_ACCOUNTING */
 
 #define sched_clock_irqtime	(0)
 
-static cputime_t irqtime_account_hi_update(cputime_t dummy)
-{
-	return 0;
-}
-
-static cputime_t irqtime_account_si_update(cputime_t dummy)
+static cputime_t irqtime_tick_accounted(cputime_t dummy)
 {
 	return 0;
 }
@@ -161,15 +135,10 @@ void account_user_time(struct task_struct *p, cputime_t cputime,
 	index = (task_nice(p) > 0) ? CPUTIME_NICE : CPUTIME_USER;
 
 	/* Add user time to cpustat. */
-	task_group_account_field(p, index, (__force u64) cputime);
+	task_group_account_field(p, index, cputime_to_nsecs(cputime));
 
 	/* Account for user time used */
 	acct_account_cputime(p);
-
-#ifdef CONFIG_CPU_FREQ_TIMES
-	/* Account power usage for user time */
-	cpufreq_acct_update_power(p, cputime);
-#endif
 }
 
 /*
@@ -191,11 +160,11 @@ static void account_guest_time(struct task_struct *p, cputime_t cputime,
 
 	/* Add guest time to cpustat. */
 	if (task_nice(p) > 0) {
-		cpustat[CPUTIME_NICE] += (__force u64) cputime;
-		cpustat[CPUTIME_GUEST_NICE] += (__force u64) cputime;
+		cpustat[CPUTIME_NICE] += cputime_to_nsecs(cputime);
+		cpustat[CPUTIME_GUEST_NICE] += cputime_to_nsecs(cputime);
 	} else {
-		cpustat[CPUTIME_USER] += (__force u64) cputime;
-		cpustat[CPUTIME_GUEST] += (__force u64) cputime;
+		cpustat[CPUTIME_USER] += cputime_to_nsecs(cputime);
+		cpustat[CPUTIME_GUEST] += cputime_to_nsecs(cputime);
 	}
 }
 
@@ -216,14 +185,10 @@ void __account_system_time(struct task_struct *p, cputime_t cputime,
 	account_group_system_time(p, cputime);
 
 	/* Add system time to cpustat. */
-	task_group_account_field(p, index, (__force u64) cputime);
+	task_group_account_field(p, index, cputime_to_nsecs(cputime));
 
 	/* Account for system time used */
 	acct_account_cputime(p);
-#ifdef CONFIG_CPU_FREQ_TIMES
-	/* Account power usage for system time */
-	cpufreq_acct_update_power(p, cputime);
-#endif
 }
 
 /*
@@ -261,7 +226,7 @@ void account_steal_time(cputime_t cputime)
 {
 	u64 *cpustat = kcpustat_this_cpu->cpustat;
 
-	cpustat[CPUTIME_STEAL] += (__force u64) cputime;
+	cpustat[CPUTIME_STEAL] += cputime_to_nsecs(cputime);
 }
 
 /*
@@ -274,9 +239,9 @@ void account_idle_time(cputime_t cputime)
 	struct rq *rq = this_rq();
 
 	if (atomic_read(&rq->nr_iowait) > 0)
-		cpustat[CPUTIME_IOWAIT] += (__force u64) cputime;
+		cpustat[CPUTIME_IOWAIT] += cputime_to_nsecs(cputime);
 	else
-		cpustat[CPUTIME_IDLE] += (__force u64) cputime;
+		cpustat[CPUTIME_IDLE] += cputime_to_nsecs(cputime);
 }
 
 /*
@@ -317,10 +282,7 @@ static inline cputime_t account_other_time(cputime_t max)
 	accounted = steal_account_process_time(max);
 
 	if (accounted < max)
-		accounted += irqtime_account_hi_update(max - accounted);
-
-	if (accounted < max)
-		accounted += irqtime_account_si_update(max - accounted);
+		accounted += irqtime_tick_accounted(max - accounted);
 
 	return accounted;
 }

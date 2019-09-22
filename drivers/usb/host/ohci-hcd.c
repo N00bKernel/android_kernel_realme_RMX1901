@@ -280,7 +280,7 @@ static int ohci_urb_enqueue (
 						ed->interval);
 				if (urb_priv->td_cnt >= urb_priv->length) {
 					++urb_priv->td_cnt;	/* Mark it */
-					ohci_dbg(ohci, "iso underrun %pK (%u+%u < %u)\n",
+					ohci_dbg(ohci, "iso underrun %p (%u+%u < %u)\n",
 							urb, frame, length,
 							next);
 				}
@@ -388,7 +388,7 @@ sanitize:
 		/* caller was supposed to have unlinked any requests;
 		 * that's not our job.  can't recover; must leak ed.
 		 */
-		ohci_err (ohci, "leak ed %pK (#%02x) state %d%s\n",
+		ohci_err (ohci, "leak ed %p (#%02x) state %d%s\n",
 			ed, ep->desc.bEndpointAddress, ed->state,
 			list_empty (&ed->td_list) ? "" : " (has tds)");
 		td_free (ohci, ed->dummy);
@@ -417,8 +417,7 @@ static void ohci_usb_reset (struct ohci_hcd *ohci)
  * other cases where the next software may expect clean state from the
  * "firmware".  this is bus-neutral, unlike shutdown() methods.
  */
-static void
-ohci_shutdown (struct usb_hcd *hcd)
+static void _ohci_shutdown(struct usb_hcd *hcd)
 {
 	struct ohci_hcd *ohci;
 
@@ -432,6 +431,16 @@ ohci_shutdown (struct usb_hcd *hcd)
 
 	ohci_writel(ohci, ohci->fminterval, &ohci->regs->fminterval);
 	ohci->rh_state = OHCI_RH_HALTED;
+}
+
+static void ohci_shutdown(struct usb_hcd *hcd)
+{
+	struct ohci_hcd	*ohci = hcd_to_ohci(hcd);
+	unsigned long flags;
+
+	spin_lock_irqsave(&ohci->lock, flags);
+	_ohci_shutdown(hcd);
+	spin_unlock_irqrestore(&ohci->lock, flags);
 }
 
 /*-------------------------------------------------------------------------*
@@ -752,7 +761,7 @@ static void io_watchdog_func(unsigned long _ohci)
  died:
 			usb_hc_died(ohci_to_hcd(ohci));
 			ohci_dump(ohci);
-			ohci_shutdown(ohci_to_hcd(ohci));
+			_ohci_shutdown(ohci_to_hcd(ohci));
 			goto done;
 		} else {
 			/* No write back because the done queue was empty */
@@ -1033,7 +1042,7 @@ int ohci_restart(struct ohci_hcd *ohci)
 		case ED_UNLINK:
 			break;
 		default:
-			ohci_dbg(ohci, "bogus ed %pK state %d\n",
+			ohci_dbg(ohci, "bogus ed %p state %d\n",
 					ed, ed->state);
 		}
 

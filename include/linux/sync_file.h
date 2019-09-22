@@ -43,10 +43,9 @@ struct sync_file {
 
 	struct fence		*fence;
 	struct fence_cb cb;
-	unsigned long flags;
 };
 
-#define POLL_ENABLED 0
+#define POLL_ENABLED FENCE_FLAG_USER_BITS
 
 struct sync_file *sync_file_create(struct fence *fence);
 struct fence *sync_file_get_fence(int fd);

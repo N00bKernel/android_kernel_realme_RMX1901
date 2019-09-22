@@ -1606,14 +1606,7 @@ EXPORT_SYMBOL(ttm_bo_unmap_virtual);
 int ttm_bo_wait(struct ttm_buffer_object *bo,
 		bool interruptible, bool no_wait)
 {
-	long timeout = 15 * HZ;
-
-	if (no_wait) {
-		if (reservation_object_test_signaled_rcu(bo->resv, true))
-			return 0;
-		else
-			return -EBUSY;
-	}
+	long timeout = no_wait ? 0 : 15 * HZ;
 
 	timeout = reservation_object_wait_timeout_rcu(bo->resv, true,
 						      interruptible, timeout);

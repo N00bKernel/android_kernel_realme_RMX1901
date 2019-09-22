@@ -104,9 +104,7 @@
 
 #define ETH_P_802_3_MIN	0x0600		/* If the value in the ethernet type is less than this value
 					 * then the frame is Ethernet II. Else it is 802.3 */
-#define ETH_P_MAP	0xDA1A		/* Multiplexing and Aggregation Protocol
-					 *  NOT AN OFFICIALLY REGISTERED ID ]
-					 */
+
 /*
  *	Non DIX types. Won't clash for 1500 types.
  */
@@ -141,11 +139,18 @@
  *	This is an Ethernet frame header.
  */
 
+/* allow libcs like musl to deactivate this, glibc does not implement this. */
+#ifndef __UAPI_DEF_ETHHDR
+#define __UAPI_DEF_ETHHDR		1
+#endif
+
+#if __UAPI_DEF_ETHHDR
 struct ethhdr {
 	unsigned char	h_dest[ETH_ALEN];	/* destination eth addr	*/
 	unsigned char	h_source[ETH_ALEN];	/* source ether addr	*/
 	__be16		h_proto;		/* packet type ID field	*/
 } __attribute__((packed));
+#endif
 
 
 #endif /* _UAPI_LINUX_IF_ETHER_H */

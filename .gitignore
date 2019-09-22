@@ -115,14 +115,3 @@ all.config
 
 # Kdevelop4
 *.kdev4
-
-# fetched Android config fragments
-kernel/configs/android-*.cfg
-
-# N00bKernel Excludes
-out/
-N00bKernel*
-arch/arm64/configs/N00bKernel*
-handy.sh
-nk_chkcomp.sh
-nk_debug.sh

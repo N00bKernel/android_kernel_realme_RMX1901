@@ -88,6 +88,8 @@ static int ext4_validate_inode_bitmap(struct super_block *sb,
 		return -EFSCORRUPTED;
 
 	ext4_lock_group(sb, block_group);
+	if (buffer_verified(bh))
+		goto verified;
 	blk = ext4_inode_bitmap(sb, desc);
 	if (!ext4_inode_bitmap_csum_verify(sb, block_group, desc, bh,
 					   EXT4_INODES_PER_GROUP(sb) / 8)) {
@@ -105,6 +107,7 @@ static int ext4_validate_inode_bitmap(struct super_block *sb,
 		return -EFSBADCRC;
 	}
 	set_buffer_verified(bh);
+verified:
 	ext4_unlock_group(sb, block_group);
 	return 0;
 }
@@ -1069,17 +1072,6 @@ got:
 	if (err)
 		goto fail_drop;
 
-	/*
-	 * Since the encryption xattr will always be unique, create it first so
-	 * that it's less likely to end up in an external xattr block and
-	 * prevent its deduplication.
-	 */
-	if (encrypt) {
-		err = fscrypt_inherit_context(dir, inode, handle, true);
-		if (err)
-			goto fail_free_drop;
-	}
-
 	err = ext4_init_acl(handle, inode, dir);
 	if (err)
 		goto fail_free_drop;
@@ -1099,6 +1091,13 @@ got:
 	if (ext4_handle_valid(handle)) {
 		ei->i_sync_tid = handle->h_transaction->t_tid;
 		ei->i_datasync_tid = handle->h_transaction->t_tid;
+	}
+
+	if (encrypt) {
+		/* give pointer to avoid set_context with journal ops. */
+		err = fscrypt_inherit_context(dir, inode, &encrypt, true);
+		if (err)
+			goto fail_free_drop;
 	}
 
 	err = ext4_mark_inode_dirty(handle, inode);

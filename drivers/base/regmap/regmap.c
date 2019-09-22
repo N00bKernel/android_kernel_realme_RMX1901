@@ -1506,6 +1506,8 @@ int _regmap_raw_write(struct regmap *map, unsigned int reg,
 					     map->format.reg_bytes +
 					     map->format.pad_bytes,
 					     val, val_len);
+	else
+		ret = -ENOTSUPP;
 
 	/* If that didn't work fall back on linearising by hand. */
 	if (ret == -ENOTSUPP) {
@@ -1965,7 +1967,7 @@ EXPORT_SYMBOL_GPL(regmap_bulk_write);
  * they are all in the same page and have been changed to being page
  * relative. The page register has been written if that was necessary.
  */
-int _regmap_raw_multi_reg_write(struct regmap *map,
+static int _regmap_raw_multi_reg_write(struct regmap *map,
 				       const struct reg_sequence *regs,
 				       size_t num_regs)
 {

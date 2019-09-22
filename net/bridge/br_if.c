@@ -519,13 +519,15 @@ int br_add_if(struct net_bridge *br, struct net_device *dev)
 	call_netdevice_notifiers(NETDEV_JOIN, dev);
 
 	err = dev_set_allmulti(dev, 1);
-	if (err)
-		goto put_back;
+	if (err) {
+		kfree(p);	/* kobject not yet init'd, manually free */
+		goto err1;
+	}
 
 	err = kobject_init_and_add(&p->kobj, &brport_ktype, &(dev->dev.kobj),
 				   SYSFS_BRIDGE_PORT_ATTR);
 	if (err)
-		goto err1;
+		goto err2;
 
 	err = br_sysfs_addif(p);
 	if (err)
@@ -608,12 +610,9 @@ err3:
 	sysfs_remove_link(br->ifobj, p->dev->name);
 err2:
 	kobject_put(&p->kobj);
-	p = NULL; /* kobject_put frees */
-err1:
 	dev_set_allmulti(dev, -1);
-put_back:
+err1:
 	dev_put(dev);
-	kfree(p);
 	return err;
 }
 
@@ -655,34 +654,3 @@ void br_port_flags_change(struct net_bridge_port *p, unsigned long mask)
 	if (mask & BR_AUTO_MASK)
 		nbp_update_port_count(br);
 }
-
-/* br_port_dev_get()
- * Using the given addr, identify the port to which it is reachable,
- * returing a reference to the net device associated with that port.
- *
- * NOTE: Return NULL if given dev is not a bridge or
- *       the mac has no associated port
- */
-struct net_device *br_port_dev_get(struct net_device *dev, unsigned char *addr)
-{
-	struct net_bridge_fdb_entry *fdbe;
-	struct net_bridge *br;
-	struct net_device *netdev = NULL;
-
-	/* Is this a bridge? */
-	if (!(dev->priv_flags & IFF_EBRIDGE))
-		return NULL;
-
-	br = netdev_priv(dev);
-
-	/* Lookup the fdb entry and get reference to the port dev */
-	rcu_read_lock();
-	fdbe = __br_fdb_get(br, addr, 0);
-	if (fdbe && fdbe->dst) {
-		netdev = fdbe->dst->dev; /* port device */
-		dev_hold(netdev);
-	}
-	rcu_read_unlock();
-	return netdev;
-}
-EXPORT_SYMBOL(br_port_dev_get);

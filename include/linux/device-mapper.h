@@ -408,12 +408,6 @@ void dm_set_mdptr(struct mapped_device *md, void *ptr);
 void *dm_get_mdptr(struct mapped_device *md);
 
 /*
- * Export the device via the ioctl interface (uses mdptr).
- */
-int dm_ioctl_export(struct mapped_device *md, const char *name,
-		    const char *uuid);
-
-/*
  * A device can still be used while suspended, but I/O is deferred.
  */
 int dm_suspend(struct mapped_device *md, unsigned suspend_flags);
@@ -439,13 +433,6 @@ void dm_accept_partial_bio(struct bio *bio, unsigned n_sectors);
 union map_info *dm_get_rq_mapinfo(struct request *rq);
 
 struct queue_limits *dm_get_queue_limits(struct mapped_device *md);
-
-void dm_lock_md_type(struct mapped_device *md);
-void dm_unlock_md_type(struct mapped_device *md);
-void dm_set_md_type(struct mapped_device *md, unsigned type);
-unsigned dm_get_md_type(struct mapped_device *md);
-int dm_setup_md_queue(struct mapped_device *md, struct dm_table *t);
-unsigned dm_table_get_type(struct dm_table *t);
 
 /*
  * Geometry functions.
@@ -640,7 +627,7 @@ extern struct ratelimit_state dm_ratelimit_state;
  */
 #define dm_target_offset(ti, sector) ((sector) - (ti)->begin)
 
-static inline sector_t to_sector(unsigned long n)
+static inline sector_t to_sector(unsigned long long n)
 {
 	return (n >> SECTOR_SHIFT);
 }
@@ -649,13 +636,5 @@ static inline unsigned long to_bytes(sector_t n)
 {
 	return (n << SECTOR_SHIFT);
 }
-
-/*-----------------------------------------------------------------
- * Helper for block layer and dm core operations
- *-----------------------------------------------------------------
- */
-void dm_dispatch_request(struct request *rq);
-void dm_kill_unmapped_request(struct request *rq, int error);
-void dm_end_request(struct request *clone, int error);
 
 #endif	/* _LINUX_DEVICE_MAPPER_H */

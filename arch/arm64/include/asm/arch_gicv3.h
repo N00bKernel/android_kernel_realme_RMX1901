@@ -21,7 +21,6 @@
 #include <asm/sysreg.h>
 
 #define ICC_EOIR1_EL1			sys_reg(3, 0, 12, 12, 1)
-#define ICC_HPPIR1_EL1			sys_reg(3, 0, 12, 12, 2)
 #define ICC_DIR_EL1			sys_reg(3, 0, 12, 11, 1)
 #define ICC_IAR1_EL1			sys_reg(3, 0, 12, 12, 0)
 #define ICC_SGI1R_EL1			sys_reg(3, 0, 12, 11, 5)
@@ -81,24 +80,8 @@
 #include <linux/stringify.h>
 #include <asm/barrier.h>
 
-#define read_gicreg(r)							\
-	({								\
-		u64 reg;						\
-		asm volatile(DEFINE_MRS_S				\
-			"mrs_s %0, " __stringify(r) "\n"		\
-			UNDEFINE_MRS_S					\
-			: "=r" (reg));					\
-		reg;							\
-	})
-
-#define write_gicreg(v,r)						\
-	do {								\
-		u64 __val = (v);					\
-		asm volatile(DEFINE_MSR_S				\
-			"msr_s " __stringify(r) ", %0\n"		\
-			UNDEFINE_MSR_S					\
-			: : "r" (__val));				\
-	} while (0)
+#define read_gicreg			read_sysreg_s
+#define write_gicreg			write_sysreg_s
 
 /*
  * Low-level accessors
@@ -109,19 +92,13 @@
 
 static inline void gic_write_eoir(u32 irq)
 {
-	asm volatile(DEFINE_MSR_S
-		"msr_s " __stringify(ICC_EOIR1_EL1) ", %0\n"
-		UNDEFINE_MSR_S
-		: : "r" ((u64)irq));
+	write_sysreg_s(irq, ICC_EOIR1_EL1);
 	isb();
 }
 
 static inline void gic_write_dir(u32 irq)
 {
-	asm volatile(DEFINE_MSR_S
-		"msr_s " __stringify(ICC_DIR_EL1) ", %0\n"
-		UNDEFINE_MSR_S
-		: : "r" ((u64)irq));
+	write_sysreg_s(irq, ICC_DIR_EL1);
 	isb();
 }
 
@@ -129,10 +106,7 @@ static inline u64 gic_read_iar_common(void)
 {
 	u64 irqstat;
 
-	asm volatile(DEFINE_MRS_S
-		"mrs_s %0, " __stringify(ICC_IAR1_EL1) "\n"
-		UNDEFINE_MRS_S
-		: "=r" (irqstat));
+	irqstat = read_sysreg_s(ICC_IAR1_EL1);
 	dsb(sy);
 	return irqstat;
 }
@@ -150,12 +124,12 @@ static inline u64 gic_read_iar_cavium_thunderx(void)
 
 	asm volatile(
 		"nop;nop;nop;nop\n\t"
-		"nop;nop;nop;nop\n\t"
-		DEFINE_MRS_S
-		"mrs_s %0, " __stringify(ICC_IAR1_EL1) "\n\t"
-		UNDEFINE_MRS_S
-		"nop;nop;nop;nop"
-		: "=r" (irqstat));
+		"nop;nop;nop;nop");
+
+	irqstat = read_sysreg_s(ICC_IAR1_EL1);
+
+	asm volatile(
+		"nop;nop;nop;nop");
 	mb();
 
 	return irqstat;
@@ -163,73 +137,44 @@ static inline u64 gic_read_iar_cavium_thunderx(void)
 
 static inline void gic_write_pmr(u32 val)
 {
-	asm volatile(DEFINE_MSR_S
-		"msr_s " __stringify(ICC_PMR_EL1) ", %0\n"
-		UNDEFINE_MSR_S
-		: : "r" ((u64)val));
-	/* As per the architecture specification */
-	mb();
+	write_sysreg_s(val, ICC_PMR_EL1);
 }
 
 static inline void gic_write_ctlr(u32 val)
 {
-	asm volatile(DEFINE_MSR_S
-		"msr_s " __stringify(ICC_CTLR_EL1) ", %0\n"
-		UNDEFINE_MSR_S
-		: : "r" ((u64)val));
+	write_sysreg_s(val, ICC_CTLR_EL1);
 	isb();
 }
 
 static inline void gic_write_grpen1(u32 val)
 {
-	asm volatile(DEFINE_MSR_S
-		"msr_s " __stringify(ICC_GRPEN1_EL1) ", %0\n"
-		UNDEFINE_MSR_S
-		: : "r" ((u64)val));
+	write_sysreg_s(val, ICC_GRPEN1_EL1);
 	isb();
 }
 
 static inline void gic_write_sgi1r(u64 val)
 {
-	asm volatile(DEFINE_MSR_S
-		"msr_s " __stringify(ICC_SGI1R_EL1) ", %0\n"
-		UNDEFINE_MSR_S
-		: : "r" (val));
-	/* As per the architecture specification */
-	mb();
+	write_sysreg_s(val, ICC_SGI1R_EL1);
 }
 
 static inline u32 gic_read_sre(void)
 {
-	u64 val;
-
-	asm volatile(DEFINE_MRS_S
-		"mrs_s %0, " __stringify(ICC_SRE_EL1) "\n"
-		UNDEFINE_MRS_S
-		: "=r" (val));
-	return val;
+	return read_sysreg_s(ICC_SRE_EL1);
 }
 
 static inline void gic_write_sre(u32 val)
 {
-	asm volatile(DEFINE_MSR_S
-		"msr_s " __stringify(ICC_SRE_EL1) ", %0\n"
-		UNDEFINE_MSR_S
-		: : "r" ((u64)val));
+	write_sysreg_s(val, ICC_SRE_EL1);
 	isb();
 }
 
 static inline void gic_write_bpr1(u32 val)
 {
-	asm volatile(DEFINE_MSR_S
-		"msr_s " __stringify(ICC_BPR1_EL1) ", %x0\n"
-		UNDEFINE_MSR_S
-		: : "rZ" (val));
+	write_sysreg_s(val, ICC_BPR1_EL1);
 }
 
-#define gic_read_typer(c)		readq_relaxed_no_log(c)
-#define gic_read_irouter(c)		readq_relaxed_no_log(c)
-#define gic_write_irouter(v, c)		writeq_relaxed_no_log(v, c)
+#define gic_read_typer(c)		readq_relaxed(c)
+#define gic_write_irouter(v, c)		writeq_relaxed(v, c)
 
 #endif /* __ASSEMBLY__ */
 #endif /* __ASM_ARCH_GICV3_H */

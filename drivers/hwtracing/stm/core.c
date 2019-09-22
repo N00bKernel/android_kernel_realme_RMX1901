@@ -175,9 +175,8 @@ static int stp_master_alloc(struct stm_device *stm, unsigned int idx)
 {
 	struct stp_master *master;
 	size_t size;
-	unsigned long align = sizeof(unsigned long);
 
-	size = ALIGN(stm->data->sw_nchannels, align) / align;
+	size = ALIGN(stm->data->sw_nchannels, 8) / 8;
 	size += sizeof(struct stp_master);
 	master = kzalloc(size, GFP_ATOMIC);
 	if (!master)
@@ -227,8 +226,8 @@ stm_output_disclaim(struct stm_device *stm, struct stm_output *output)
 	bitmap_release_region(&master->chan_map[0], output->channel,
 			      ilog2(output->nr_chans));
 
-	output->nr_chans = 0;
 	master->nr_free += output->nr_chans;
+	output->nr_chans = 0;
 }
 
 /*
@@ -253,6 +252,9 @@ static int find_free_channels(unsigned long *bitmap, unsigned int start,
 			;
 		if (i == width)
 			return pos;
+
+		/* step over [pos..pos+i) to continue search */
+		pos += i;
 	}
 
 	return -1;
@@ -437,23 +439,17 @@ static ssize_t stm_write(struct stm_data *data, unsigned int master,
 	size_t pos;
 	ssize_t sz;
 
-	if (data->ost_configured()) {
-		pos = data->ost_packet(data, count, buf);
-	} else {
-		for (pos = 0, p = buf; count > pos; pos += sz, p += sz) {
-			sz = min_t(unsigned int, count - pos, 8);
-			sz = data->packet(data, master, channel,
-					  STP_PACKET_DATA, flags,
-					  sz, p);
-			flags = 0;
+	for (pos = 0, p = buf; count > pos; pos += sz, p += sz) {
+		sz = min_t(unsigned int, count - pos, 8);
+		sz = data->packet(data, master, channel, STP_PACKET_DATA, flags,
+				  sz, p);
+		flags = 0;
 
-			if (sz < 0)
-				break;
-		}
-
-		data->packet(data, master, channel, STP_PACKET_FLAG, 0,
-			     0, &nil);
+		if (sz < 0)
+			break;
 	}
+
+	data->packet(data, master, channel, STP_PACKET_FLAG, 0, 0, &nil);
 
 	return pos;
 }
@@ -565,7 +561,7 @@ static int stm_char_policy_set_ioctl(struct stm_file *stmf, void __user *arg)
 {
 	struct stm_device *stm = stmf->stm;
 	struct stp_policy_id *id;
-	int ret = -EINVAL;
+	int ret = -EINVAL, wlimit = 1;
 	u32 size;
 
 	if (stmf->output.nr_chans)
@@ -593,8 +589,10 @@ static int stm_char_policy_set_ioctl(struct stm_file *stmf, void __user *arg)
 	if (id->__reserved_0 || id->__reserved_1)
 		goto err_free;
 
-	if (id->width < 1 ||
-	    id->width > PAGE_SIZE / stm->data->sw_mmiosz)
+	if (stm->data->sw_mmiosz)
+		wlimit = PAGE_SIZE / stm->data->sw_mmiosz;
+
+	if (id->width < 1 || id->width > wlimit)
 		goto err_free;
 
 	ret = stm_file_assign(stmf, id->id, id->width);
@@ -1109,7 +1107,6 @@ int stm_source_register_device(struct device *parent,
 
 err:
 	put_device(&src->dev);
-	kfree(src);
 
 	return err;
 }

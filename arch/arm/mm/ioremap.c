@@ -92,8 +92,7 @@ void __init add_static_vm_early(struct static_vm *svm)
 	void *vaddr;
 
 	vm = &svm->vm;
-	if (!vm_area_check_early(vm))
-		vm_area_add_early(vm);
+	vm_area_add_early(vm);
 	vaddr = vm->addr;
 
 	list_for_each_entry(curr_svm, &static_vmlist, list) {
@@ -265,7 +264,6 @@ static void __iomem * __arm_ioremap_pfn_caller(unsigned long pfn,
 	unsigned long addr;
 	struct vm_struct *area;
 	phys_addr_t paddr = __pfn_to_phys(pfn);
-	pgprot_t prot;
 
 #ifndef CONFIG_ARM_LPAE
 	/*
@@ -311,12 +309,6 @@ static void __iomem * __arm_ioremap_pfn_caller(unsigned long pfn,
  	addr = (unsigned long)area->addr;
 	area->phys_addr = paddr;
 
-	prot = __pgprot(type->prot_pte);
-#ifdef CONFIG_ARCH_MSM8953_SOC_SETTINGS
-	if (paddr >= MSM8953_TLMM_START_ADDR &&
-	    paddr <= MSM8953_TLMM_END_ADDR)
-		prot = pgprot_stronglyordered(type->prot_pte);
-#endif
 #if !defined(CONFIG_SMP) && !defined(CONFIG_ARM_LPAE)
 	if (DOMAIN_IO == 0 &&
 	    (((cpu_architecture() >= CPU_ARCH_ARMv6) && (get_cr() & CR_XP)) ||
@@ -329,7 +321,8 @@ static void __iomem * __arm_ioremap_pfn_caller(unsigned long pfn,
 		err = remap_area_sections(addr, pfn, size, type);
 	} else
 #endif
-		err = ioremap_page_range(addr, addr + size, paddr, prot);
+		err = ioremap_page_range(addr, addr + size, paddr,
+					 __pgprot(type->prot_pte));
 
 	if (err) {
  		vunmap((void *)addr);
@@ -480,7 +473,7 @@ void pci_ioremap_set_mem_type(int mem_type)
 
 int pci_ioremap_io(unsigned int offset, phys_addr_t phys_addr)
 {
-	BUG_ON(offset + SZ_64K > IO_SPACE_LIMIT);
+	BUG_ON(offset + SZ_64K - 1 > IO_SPACE_LIMIT);
 
 	return ioremap_page_range(PCI_IO_VIRT_BASE + offset,
 				  PCI_IO_VIRT_BASE + offset + SZ_64K,

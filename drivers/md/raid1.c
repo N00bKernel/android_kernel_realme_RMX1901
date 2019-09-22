@@ -717,9 +717,9 @@ static int raid1_congested(struct mddev *mddev, int bits)
 			 * non-congested targets, it can be removed
 			 */
 			if ((bits & (1 << WB_async_congested)) || 1)
-				ret |= bdi_congested(q->backing_dev_info, bits);
+				ret |= bdi_congested(&q->backing_dev_info, bits);
 			else
-				ret &= bdi_congested(q->backing_dev_info, bits);
+				ret &= bdi_congested(&q->backing_dev_info, bits);
 		}
 	}
 	rcu_read_unlock();
@@ -1589,6 +1589,7 @@ static int raid1_add_disk(struct mddev *mddev, struct md_rdev *rdev)
 	 */
 	if (rdev->saved_raid_disk >= 0 &&
 	    rdev->saved_raid_disk >= first &&
+	    rdev->saved_raid_disk < conf->raid_disks &&
 	    conf->mirrors[rdev->saved_raid_disk].rdev == NULL)
 		first = last = rdev->saved_raid_disk;
 

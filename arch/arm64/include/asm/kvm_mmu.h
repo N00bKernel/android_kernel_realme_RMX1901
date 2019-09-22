@@ -47,7 +47,7 @@
  * If the page is in the bottom half, we have to use the top half. If
  * the page is in the top half, we have to use the bottom half:
  *
- * T = __pa_symbol(__hyp_idmap_text_start)
+ * T = __virt_to_phys(__hyp_idmap_text_start)
  * if (T & BIT(VA_BITS - 1))
  *	HYP_VA_MIN = 0  //idmap in upper half
  * else
@@ -129,6 +129,26 @@ static inline unsigned long __kern_hyp_va(unsigned long v)
 }
 
 #define kern_hyp_va(v) 	((typeof(v))(__kern_hyp_va((unsigned long)(v))))
+
+/*
+ * Obtain the PC-relative address of a kernel symbol
+ * s: symbol
+ *
+ * The goal of this macro is to return a symbol's address based on a
+ * PC-relative computation, as opposed to a loading the VA from a
+ * constant pool or something similar. This works well for HYP, as an
+ * absolute VA is guaranteed to be wrong. Only use this if trying to
+ * obtain the address of a symbol (i.e. not something you obtained by
+ * following a pointer).
+ */
+#define hyp_symbol_addr(s)						\
+	({								\
+		typeof(s) *addr;					\
+		asm("adrp	%0, %1\n"				\
+		    "add	%0, %0, :lo12:%1\n"			\
+		    : "=r" (addr) : "S" (&s));				\
+		addr;							\
+	})
 
 /*
  * We currently only support a 40bit IPA.
@@ -270,7 +290,7 @@ static inline void __kvm_flush_dcache_pud(pud_t pud)
 	kvm_flush_dcache_to_poc(page_address(page), PUD_SIZE);
 }
 
-#define kvm_virt_to_phys(x)		__pa_symbol(x)
+#define kvm_virt_to_phys(x)		__virt_to_phys((unsigned long)(x))
 
 void kvm_set_way_flush(struct kvm_vcpu *vcpu);
 void kvm_toggle_cache(struct kvm_vcpu *vcpu, bool was_enabled);
@@ -362,6 +382,30 @@ static inline void *kvm_get_hyp_vector(void)
 }
 
 static inline int kvm_map_vectors(void)
+{
+	return 0;
+}
+#endif
+
+#ifdef CONFIG_ARM64_SSBD
+DECLARE_PER_CPU_READ_MOSTLY(u64, arm64_ssbd_callback_required);
+
+static inline int hyp_map_aux_data(void)
+{
+	int cpu, err;
+
+	for_each_possible_cpu(cpu) {
+		u64 *ptr;
+
+		ptr = per_cpu_ptr(&arm64_ssbd_callback_required, cpu);
+		err = create_hyp_mappings(ptr, ptr + 1, PAGE_HYP);
+		if (err)
+			return err;
+	}
+	return 0;
+}
+#else
+static inline int hyp_map_aux_data(void)
 {
 	return 0;
 }

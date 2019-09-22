@@ -27,7 +27,6 @@ struct msm_iommu {
 static int msm_fault_handler(struct iommu_domain *iommu, struct device *dev,
 		unsigned long iova, int flags, void *arg)
 {
-
 	pr_warn_ratelimited("*** fault: iova=%08lx, flags=%d\n", iova, flags);
 	return 0;
 }
@@ -47,7 +46,7 @@ static void msm_iommu_detach(struct msm_mmu *mmu, const char * const *names,
 }
 
 static int msm_iommu_map(struct msm_mmu *mmu, uint32_t iova,
-		struct sg_table *sgt, int prot)
+		struct sg_table *sgt, unsigned len, int prot)
 {
 	struct msm_iommu *iommu = to_msm_iommu(mmu);
 	struct iommu_domain *domain = iommu->domain;
@@ -86,7 +85,7 @@ fail:
 }
 
 static int msm_iommu_unmap(struct msm_mmu *mmu, uint32_t iova,
-		struct sg_table *sgt)
+		struct sg_table *sgt, unsigned len)
 {
 	struct msm_iommu *iommu = to_msm_iommu(mmu);
 	struct iommu_domain *domain = iommu->domain;

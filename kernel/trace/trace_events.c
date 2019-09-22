@@ -312,15 +312,14 @@ static void output_printk(struct trace_event_buffer *fbuffer)
 	spin_unlock_irqrestore(&tracepoint_iter_lock, flags);
 }
 
-void trace_event_buffer_commit(struct trace_event_buffer *fbuffer,
-			       unsigned long len)
+void trace_event_buffer_commit(struct trace_event_buffer *fbuffer)
 {
 	if (tracepoint_printk)
 		output_printk(fbuffer);
 
 	event_trigger_unlock_commit(fbuffer->trace_file, fbuffer->buffer,
 				    fbuffer->event, fbuffer->entry,
-				    fbuffer->flags, fbuffer->pc, len);
+				    fbuffer->flags, fbuffer->pc);
 }
 EXPORT_SYMBOL_GPL(trace_event_buffer_commit);
 
@@ -1310,9 +1309,6 @@ event_id_read(struct file *filp, char __user *ubuf, size_t cnt, loff_t *ppos)
 	int id = (long)event_file_data(filp);
 	char buf[32];
 	int len;
-
-	if (*ppos)
-		return 0;
 
 	if (unlikely(!id))
 		return -ENODEV;

@@ -178,13 +178,8 @@ int sch_direct_xmit(struct sk_buff *skb, struct Qdisc *q,
 
 	if (likely(skb)) {
 		HARD_TX_LOCK(dev, txq, smp_processor_id());
-		if (!netif_xmit_frozen_or_stopped(txq)) {
-			if (unlikely(skb->fast_forwarded))
-				skb = dev_hard_start_xmit_list(skb, dev,
-							       txq, &ret);
-			else
-				skb = dev_hard_start_xmit(skb, dev, txq, &ret);
-		}
+		if (!netif_xmit_frozen_or_stopped(txq))
+			skb = dev_hard_start_xmit(skb, dev, txq, &ret);
 
 		HARD_TX_UNLOCK(dev, txq);
 	} else {
@@ -292,10 +287,6 @@ EXPORT_SYMBOL(dev_trans_start);
 static void dev_watchdog(unsigned long arg)
 {
 	struct net_device *dev = (struct net_device *)arg;
-#ifdef VENDOR_EDIT
-/* Fuchun.Liao@BSP.CHG.Basic 2019/03/14 modify for del warning to avoid hang */
-	static bool print_once = false;
-#endif /* VENDOR_EDIT */
 
 	netif_tx_lock(dev);
 	if (!qdisc_tx_is_noop(dev)) {
@@ -321,17 +312,8 @@ static void dev_watchdog(unsigned long arg)
 			}
 
 			if (some_queue_timedout) {
-#ifndef VENDOR_EDIT
-/* Fuchun.Liao@BSP.CHG.Basic 2019/03/14 modify for del warning to avoid hang */
 				WARN_ONCE(1, KERN_INFO "NETDEV WATCHDOG: %s (%s): transmit queue %u timed out\n",
 				       dev->name, netdev_drivername(dev), i);
-#else
-				if (print_once == false) {
-					print_once = true;
-					pr_err("NETDEV WATCHDOG: %s (%s): transmit queue %u timed out\n",
-				       dev->name, netdev_drivername(dev), i);
-				}
-#endif /* VENDOR_EDIT */
 				dev->netdev_ops->ndo_tx_timeout(dev);
 			}
 			if (!mod_timer(&dev->watchdog_timer,
@@ -717,7 +699,11 @@ static void qdisc_rcu_free(struct rcu_head *head)
 
 void qdisc_destroy(struct Qdisc *qdisc)
 {
-	const struct Qdisc_ops  *ops = qdisc->ops;
+	const struct Qdisc_ops *ops;
+
+	if (!qdisc)
+		return;
+	ops = qdisc->ops;
 
 	if (qdisc->flags & TCQ_F_BUILTIN ||
 	    !atomic_dec_and_test(&qdisc->refcnt))

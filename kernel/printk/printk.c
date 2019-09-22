@@ -56,29 +56,13 @@
 #include "braille.h"
 #include "internal.h"
 
-#ifdef CONFIG_EARLY_PRINTK_DIRECT
-extern void printascii(char *);
-#endif
-
 int console_printk[4] = {
 	CONSOLE_LOGLEVEL_DEFAULT,	/* console_loglevel */
 	MESSAGE_LOGLEVEL_DEFAULT,	/* default_message_loglevel */
 	CONSOLE_LOGLEVEL_MIN,		/* minimum_console_loglevel */
 	CONSOLE_LOGLEVEL_DEFAULT,	/* default_console_loglevel */
 };
-#ifdef VENDOR_EDIT
-//Nanwei.Deng@BSP.CHG.Basic 2018/05/01,add for get disable uart value from cmdline
-#if defined(CONFIG_OPPO_DAILY_BUILD) && (!defined(CONFIG_OPPO_SPECIAL_BUILD))
-bool printk_disable_uart = false;
-#else
-bool printk_disable_uart = true;
-#endif
 
-bool oem_get_uartlog_status(void)
-{
-	return !printk_disable_uart;
-}
-#endif /*VENDOR_EDIT*/
 /*
  * Low level drivers may need that to know if they can schedule in
  * their unblank() callback or not. So let's export it.
@@ -555,21 +539,6 @@ static int log_store(int facility, int level,
 	u32 size, pad_len;
 	u16 trunc_msg_len = 0;
 
-	#ifdef VENDOR_EDIT
-	//part 1/2: yixue.ge 2015-04-22 add for add cpu number and current id and current comm to kmsg
-	int this_cpu = smp_processor_id();
-	char tbuf[64];
-	unsigned tlen;
-
-	if (console_suspended == 0) {
-		tlen = snprintf(tbuf, sizeof(tbuf), " (%x)[%d:%s]",
-			this_cpu, current->pid, current->comm);
-	} else {
-		tlen = snprintf(tbuf, sizeof(tbuf), " %x)", this_cpu);
-	}
-	text_len += tlen;
-	#endif //add end part 1/3
-
 	/* number of '\0' padding bytes to next message */
 	size = msg_used_size(text_len, dict_len, &pad_len);
 
@@ -594,13 +563,7 @@ static int log_store(int facility, int level,
 
 	/* fill message */
 	msg = (struct printk_log *)(log_buf + log_next_idx);
-	#ifndef VENDOR_EDIT
-	//part 2/2: yixue.ge 2015-04-22 add for add cpu number and current id and current comm to kmsg
 	memcpy(log_text(msg), text, text_len);
-	#else
-	memcpy(log_text(msg), tbuf, tlen);
-	memcpy(log_text(msg) + tlen, text, text_len-tlen);
-	#endif //add end part 3/3
 	msg->text_len = text_len;
 	if (trunc_msg_len) {
 		memcpy(log_text(msg) + text_len, trunc_msg, trunc_msg_len);
@@ -1047,7 +1010,12 @@ static void __init log_buf_len_update(unsigned size)
 /* save requested log_buf_len since it's too early to process it */
 static int __init log_buf_len_setup(char *str)
 {
-	unsigned size = memparse(str, &str);
+	unsigned int size;
+
+	if (!str)
+		return -EINVAL;
+
+	size = memparse(str, &str);
 
 	log_buf_len_update(size);
 
@@ -1907,10 +1875,6 @@ asmlinkage int vprintk_emit(int facility, int level,
 		}
 	}
 
-#ifdef CONFIG_EARLY_PRINTK_DIRECT
-	printascii(text);
-#endif
-
 	if (level == LOGLEVEL_DEFAULT)
 		level = default_message_loglevel;
 
@@ -2205,8 +2169,6 @@ void resume_console(void)
 	console_unlock();
 }
 
-#ifdef CONFIG_CONSOLE_FLUSH_ON_HOTPLUG
-
 /**
  * console_cpu_notify - print deferred console messages after CPU hotplug
  * @self: notifier struct
@@ -2231,8 +2193,6 @@ static int console_cpu_notify(struct notifier_block *self,
 	}
 	return NOTIFY_OK;
 }
-
-#endif
 
 /**
  * console_lock - lock the console system for exclusive use.
@@ -2887,9 +2847,7 @@ static int __init printk_late_init(void)
 				unregister_console(con);
 		}
 	}
-#ifdef CONFIG_CONSOLE_FLUSH_ON_HOTPLUG
 	hotcpu_notifier(console_cpu_notify, 0);
-#endif
 	return 0;
 }
 late_initcall(printk_late_init);

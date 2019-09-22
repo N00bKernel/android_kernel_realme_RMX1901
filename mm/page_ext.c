@@ -59,6 +59,9 @@
 
 static struct page_ext_operations *page_ext_ops[] = {
 	&debug_guardpage_ops,
+#ifdef CONFIG_PAGE_POISONING
+	&page_poisoning_ops,
+#endif
 #ifdef CONFIG_PAGE_OWNER
 	&page_owner_ops,
 #endif
@@ -283,6 +286,7 @@ static void free_page_ext(void *addr)
 		table_size = get_entry_size() * PAGES_PER_SECTION;
 
 		BUG_ON(PageReserved(page));
+		kmemleak_free(addr);
 		free_pages_exact(addr, table_size);
 	}
 }
