@@ -94,11 +94,11 @@ char g_engineermode_menu_config[ENGINEER_MENU_SELECT_MAXLENTH] = ENGINEER_MENU_D
 #ifdef CONFIG_OPTICAL_IRQ_HANDLER
 extern int silfp_opticalfp_irq_handler(struct fp_underscreen_info* tp_info);
 extern int gf_opticalfp_irq_handler(struct fp_underscreen_info* tp_info);
-#if CONFIG_OPPO_FINGERPRINT_PROJCT == 18041
+#ifdef CONFIG_OPPO_FINGERPRINT_PROJCT == 18041
 extern int egis_opticalfp_irq_handler(struct fp_underscreen_info* tp_info);
 #endif
 #endif
-#if CONFIG_OPPO_FINGERPRINT_PROJCT == 18531 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18151 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18161
+#ifdef CONFIG_OPPO_FINGERPRINT_PROJCT == 18531 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18151 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18161
 fp_module_config_t fp_module_config_list[] = {
     //{{0, -1, -1},  FP_FPC_1023_GLASS,    	CHIP_FPC,     ENGINEER_MENU_FPC1023},
     {{0, -1, -1},  FP_GOODIX_5658,           CHIP_GOODIX,     ENGINEER_MENU_GOODIX_5658},
@@ -126,7 +126,7 @@ fp_module_config_t fp_module_config_list[] = {
     //{{1, 0, 1},  FP_GOODIX_5228, 		CHIP_GOODIX,  ENGINEER_MENU_GOODIX_5228},
     {{1, 0, 1},  FP_GOODIX_5298_GLASS, CHIP_GOODIX, ENGINEER_MENU_GOODIX_5298},
     {{1, 0, 0},  FP_GOODIX_5298, CHIP_GOODIX, ENGINEER_MENU_GOODIX_5298},
-#if CONFIG_OPPO_FINGERPRINT_PROJCT == 18041
+#ifdef CONFIG_OPPO_FINGERPRINT_PROJCT == 18041
 	{{1, 1, 0},  FP_EGIS_OPTICAL_ET713, CHIP_EGIS,    ENGINEER_MENU_EGIS_OPTICAL},
 #else
     {{1, 1, 0},  FP_SILEAD_OPTICAL_70,  CHIP_SILEAD,  ENGINEER_MENU_SILEAD_OPTICAL},
@@ -169,7 +169,7 @@ static int fp_gpio_parse_dts(struct fp_data *fp_data)
         goto exit;
     }
 
-#if CONFIG_OPPO_FINGERPRINT_PROJCT == 18531 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18151 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18161 ||CONFIG_OPPO_FINGERPRINT_PROJCT == 18073 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18593
+#ifdef CONFIG_OPPO_FINGERPRINT_PROJCT == 18531 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18151 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18161 ||CONFIG_OPPO_FINGERPRINT_PROJCT == 18073 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18593
     ret = fp_request_named_gpio(fp_data, "oppo,fp-id0",
             &fp_data->gpio_id0);
     if (ret) {
@@ -403,7 +403,7 @@ static int fp_register_proc_fs(struct fp_data *fp_data)
 {
     uint32_t fp_id_retry;
     fp_id_retry = 0;
-#if CONFIG_OPPO_FINGERPRINT_PROJCT == 18181 ||  CONFIG_OPPO_FINGERPRINT_PROJCT == 18385 ||  CONFIG_OPPO_FINGERPRINT_PROJCT == 18097 ||  CONFIG_OPPO_FINGERPRINT_PROJCT == 18099 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18397 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18041 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18115 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18501 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18503 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18539 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18119 || CONFIG_OPPO_FINGERPRINT_PROJCT == 19061 || CONFIG_OPPO_FINGERPRINT_PROJCT == 19361 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18383
+#ifdef CONFIG_OPPO_FINGERPRINT_PROJCT == 18181 ||  CONFIG_OPPO_FINGERPRINT_PROJCT == 18385 ||  CONFIG_OPPO_FINGERPRINT_PROJCT == 18097 ||  CONFIG_OPPO_FINGERPRINT_PROJCT == 18099 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18397 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18041 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18115 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18501 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18503 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18539 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18119 || CONFIG_OPPO_FINGERPRINT_PROJCT == 19061 || CONFIG_OPPO_FINGERPRINT_PROJCT == 19361 || CONFIG_OPPO_FINGERPRINT_PROJCT == 18383
     fp_data->fp_id0 = 1;
     fp_data->fp_id1 = 1;
     fp_data->fp_id2 = gpio_get_value(fp_data->gpio_id2);
@@ -423,7 +423,7 @@ static int fp_register_proc_fs(struct fp_data *fp_data)
 
     dev_err(fp_data->dev, "fp_register_proc_fs check: fp_id0= %d, fp_id1= %d, fp_id2= %d, fp_id3 = %d, fp_id_retry= %d\n", \
             fp_data->fp_id0, fp_data->fp_id1, fp_data->fp_id2, fp_data->fp_id3, fp_id_retry);
-#if CONFIG_OPPO_FINGERPRINT_PROJCT == 17081
+#ifdef CONFIG_OPPO_FINGERPRINT_PROJCT == 17081
     fp_data->fpsensor_type = fp_get_matched_chip_module(fp_data->dev, fp_data->fp_id1, fp_data->fp_id2, fp_data->fp_id3);
 #else
     fp_data->fpsensor_type = fp_get_matched_chip_module(fp_data->dev, fp_data->fp_id0, fp_data->fp_id1, fp_data->fp_id2);
