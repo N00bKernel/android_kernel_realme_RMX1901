@@ -99,6 +99,7 @@ core-$(CONFIG_EFI_STUB) += $(objtree)/drivers/firmware/efi/libstub/lib.a
 
 # Default target when executing plain make
 KBUILD_IMAGE	:= Image.gz
+KBUILD_IMAGE	:= Image.gz-dtb
 KBUILD_DTBS	:= dtbs
 
 all:	$(KBUILD_IMAGE) $(KBUILD_DTBS)
